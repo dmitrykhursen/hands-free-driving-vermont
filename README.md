@@ -11,6 +11,10 @@ A dashcam image and video annotator. It detects road objects with Faster R-CNN, 
 ## Context
 Final project for **CS 254 Machine Learning** at the University of Vermont (Fall 2022), built by a team of four during my exchange semester. This repository copies the team's original private repository with its full commit history, so every teammate's commits are kept and attributed.
 
+<div align="center">
+  <img src="images/csfair.jpg" width="500" alt="UVM CS Fair 2022">
+</div>
+
 ## How it works
 1. **Object detection:** Faster R-CNN (PyTorch, through [detecto](https://github.com/alankbi/detecto)) trained on [Berkeley DeepDrive (BDD100K)](https://www.vis.xyz/bdd100k/) labels for 10 road classes: pedestrian, rider, car, truck, bus, train, motorcycle, bicycle, traffic light, traffic sign. Boxes above 0.85 confidence are kept and drawn in red.
 2. **Traffic-sign classification:** each "traffic sign" box is cropped, padded and resized to 32×32 RGB, then classified by a Keras CNN into 8 classes: stop, yield, speed limit, pedestrian crossing, do not enter, school zone, signal ahead, other. If the CNN is more than 0.7 confident, the box turns blue and shows the sign type.
@@ -73,9 +77,7 @@ models/                     # sign-classifier weights
 images/                     # README screenshots
 ```
 
-<div align="center">
-  <img src="images/csfair.jpg" width="500" alt="UVM CS Fair 2022">
-</div>
+
 
 ## License
 MIT, see [LICENSE](LICENSE). Copyright (c) 2023 Shawn Rodgers, David Smith, Dmytro Khursenko.
