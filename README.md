@@ -1,153 +1,84 @@
-<a name="readme-top"></a>
+# Hands-Free Driving Vermont: Road-Scene Image Analysis
 
-[![Contributors][contributors-shield]][contributors-url]
-[![MIT License][license-shield]][license-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
+A dashcam image and video annotator. It detects road objects with Faster R-CNN, sends detected traffic signs to a second CNN that classifies the sign type, and runs classical lane detection on highway footage.
 
-<br />
+**1st place, Advanced Machine Learning Projects, UVM Computer Science Fair 2022.**
+
 <div align="center">
-  <a href="https://www.gardeners.com">
-    <img src="images/logo.png" alt="Logo" width="500px">
-  </a>
-
-  <h3 align="center">Hands Free: Image Analysis</h3>
-
-  <p align="center">
-    Created by Shawn Rodgers, Dmytro Khursenko, David Smith, and Harrison Thompson</a>
-    <br />
-    <br />
-  </p>
+  <img src="images/2.jpg" width="600" alt="Annotated street scene">
 </div>
 
-<h2>About the Project</h2>
+## Context
+Final project for **CS 254 Machine Learning** at the University of Vermont (Fall 2022), built by a team of four during my exchange semester. This repository copies the team's original private repository with its full commit history, so every teammate's commits are kept and attributed.
 
-<br />
+## How it works
+1. **Object detection:** Faster R-CNN (PyTorch, through [detecto](https://github.com/alankbi/detecto)) trained on [Berkeley DeepDrive (BDD100K)](https://www.vis.xyz/bdd100k/) labels for 10 road classes: pedestrian, rider, car, truck, bus, train, motorcycle, bicycle, traffic light, traffic sign. Boxes above 0.85 confidence are kept and drawn in red.
+2. **Traffic-sign classification:** each "traffic sign" box is cropped, padded and resized to 32×32 RGB, then classified by a Keras CNN into 8 classes: stop, yield, speed limit, pedestrian crossing, do not enter, school zone, signal ahead, other. If the CNN is more than 0.7 confident, the box turns blue and shows the sign type.
+3. **Lane detection (OpenCV):** HLS colour masks for white and yellow lines, Canny edges, a region-of-interest mask and a probabilistic Hough transform. It only gave usable results on the highway videos. Faded lines and winding city roads broke it.
+
 <div align="center">
-    <img src="images/2.jpg" width=600px></img>
+  <img src="images/3.jpg" width="600" alt="Detected objects and classified signs">
 </div>
-<br />
 
-For the final project in our Machine Learning class, we decided to work on software to analyze images taken by autonomous vehicles. Our goal was to annotate the images based on the results of various deep learning image processing algorithms. Since it was an introductory ML course, this was an ambitious project. We did not accomplish all that we had hoped, but I think we did very well with the time we had. 
+## Results
+- **Sign classifier:** about 90% validation accuracy on roughly 1,000 images, from the LISA Traffic Sign Dataset plus our own photos of Vermont signs.
+- **Detector:** we did not evaluate it quantitatively. IoU/mAP evaluation wasn't finished before the deadline, so the detector was judged on video only.
+- **Demo:** [video on YouTube](https://youtu.be/kuKiGpaKpwA). It covers our own dashcam footage from downtown Burlington plus BDD clips in daylight, at night, in rain, and on the highway with lane detection.
 
-Due to time restrictions, we decided to focus on three main ideas
-* Object Detection
-* Sign Classification
-* Lane Detection
+[![Demo video](images/1.jpg)](https://youtu.be/kuKiGpaKpwA)
 
-We wanted to detect and classify 10 classes of objects most frequently seen on the road (cars, traffic signs, pedestrians, etc). In the stills and the video demo found <a href="#demo">below</a>, red boxes identify objects that were successfully classified into one of 10 classes by our model running Faster-RCNN. Above the box is the label of the object, followed by the confidence of the model in its decision. If the object was classified as a traffic sign, it is then passed to a separate convolutional neural network (CNN) that attempts to further classify the type of traffic sign. If it is able to classify the type of traffic sign with a specified level of confidence, then the box is blue instead of red.
+## Limitations
+This was an introductory ML course project, and the code shows it:
+- There are no tests and no metrics code in the repo.
+- The detector weights and the datasets are not included.
+- The sign CNN's training code is still the earlier grayscale version, but the deployed model is RGB.
 
-We learned that is quite difficult to perform accurate lane detection on most roads. There are numerous conditions such as fading lines and winding roads that lead to inconsistent results. Given more time we may have been able to find a stronger solution; However due to time restrictions, we were only able to get satisfactory results on the highway videos when running our lane detection algorithm.
+## Team and contributions
+| Member | Main contribution |
+|---|---|
+| Shawn Rodgers | Faster R-CNN object detection (`lib/object_detection.py`), the `run.py` pipeline, project setup and the original README |
+| David Smith | Lane detection (`lib/lane_detection.py`) |
+| **Dmytro Khursenko** | Traffic-sign classification stage (details below) |
+| Harrison Thompson | Team member |
 
-<br />
+**My part: traffic-sign classification**
+- Wrote `lib/sign_classification.py`: data loading, a 60/20/20 train/val/test split, the CNN (2× Conv 5×5 → pool → 2× Conv 3×3 → pool → Dense 500 → Dropout 0.5 → softmax), and training and inference.
+- Built the dataset from LISA signs plus self-collected Vermont sign photos, and trained several model versions.
+- Switched the model from grayscale to RGB input, since colour separates stop, yield and school-zone signs. Fixed a colour-encoding bug in the pipeline that hurt sign recognition.
+- Integrated the classifier into `run.py` as a second stage on the detector's sign crops, with its own confidence threshold.
+
+## Tech stack
+Python, PyTorch + detecto (Faster R-CNN), TensorFlow/Keras (sign CNN), OpenCV, scikit-learn, NumPy, Matplotlib, imageio.
+
+## How to run
+```bash
+pip install -r requirements.txt
+python setup.py                      # creates data/, models/, input/, output/ folders
+python run.py 1 path/to/image.jpg    # single image
+python run.py 2 path/to/images/      # directory of images
+python run.py 3 path/to/video.mp4    # video
+python run.py 4                      # train the detector (needs BDD100K in data/)
+```
+The sign model `models/RGB_eightClasses_with_VT_data.h5` is included. The Faster R-CNN weights (`models/faster_rcnn_5000_instances_12_epochs.pth`) are not, so you need to train them or add them yourself. Flags and thresholds are in `config.py`.
+
+## Repository structure
+```
+run.py                      # CLI driver: image / directory / video / training
+config.py                   # flags, class map, thresholds, model paths
+setup.py                    # creates the folder layout
+lib/object_detection.py     # Faster R-CNN training and inference
+lib/sign_classification.py  # traffic-sign CNN
+lib/lane_detection.py       # classical lane detection
+models/                     # sign-classifier weights
+images/                     # README screenshots
+```
+
 <div align="center">
-    <img src="images/3.jpg" width=600px></img>
+  <img src="images/csfair.jpg" width="500" alt="UVM CS Fair 2022">
 </div>
-<br />
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- USAGE EXAMPLES -->
-## Demo
-
-<br />
-<div align="center" id="demo">
-    <a href="https://youtu.be/kuKiGpaKpwA" target="_blank">
-        <img src="images/1.jpg" width=600px/>
-    </a>
-</div>
-</br>
-
-You can view a video demo of the project <a href="https://youtu.be/kuKiGpaKpwA" target="_blank">here</a>. We include in this video our analysis on two videos taken by us driving around downtown Burlington, as well as two videos provided by the Berkeley Deep Drive dataset.
-
-In our demo we include
-* A video taken in broad daylight with clear conditions
-* A video taken at night with clear conditions
-* A video taken during the day with rain and overcast
-* A video taken on the highway with clear conditions (with lane detection)
-
-
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## CS Fair
-We entered our project into the 2022 UVM CS Fair, and won first prize in the Advanced Machine Learning bracket! You can see the results of the fair <a href="https://csfair.w3.uvm.edu/" target="_blank">here</a>. (possibly <a href="https://csfair.w3.uvm.edu/2022" target="_blank">here</a> if the first link is broken.)
-
-<br />
-<div align="center">
-    <a href="https://youtu.be/kuKiGpaKpwA" target="_blank">
-        <img src="images/csfair.jpg" width=600px/>
-    </a>
-</div>
-</br>
-
-
-<!-- LICENSE -->
 ## License
+MIT, see [LICENSE](LICENSE). Copyright (c) 2023 Shawn Rodgers, David Smith, Dmytro Khursenko.
 
-Distributed under the MIT License. See `License.txt` for more information.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- CONTACT -->
 ## Contact
-
-### Shawn
-
-Mail - me@directedbyshawn.com
-
-Website - [directedbyshawn.com](https://www.directedbyshawn.com)
-
-LinkedIn - [linkedin.com/in/directedbyshawn](https://www.linkedin.com/in/directedbyshawn)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- ACKNOWLEDGMENTS -->
-## Resources
-
-### Training data
-* [Berkeley Deep Drive Dataset](https://deepdrive.berkeley.edu/)
-
-### Dependencies
-* [pillow](https://pypi.org/project/Pillow/)
-* [numpy](https://numpy.org/)
-* [matplotlib](https://matplotlib.org/)
-* [progressbar](https://pypi.org/project/progressbar/)
-* [opencv](https://pypi.org/project/opencv-python/)
-* [torch](https://pypi.org/project/torch/)
-* [scikit-learn](https://pypi.org/project/scikit-learn/)
-* [detecto](https://pypi.org/project/detecto/)
-* [keras](https://pypi.org/project/keras/)
-* [imageio](https://pypi.org/project/imageio/)
-* [tensorflow](https://www.tensorflow.org/)
-
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/directedbyshawn/Hands-Free.svg?style=for-the-badge
-[contributors-url]: https://github.com/directedbyshawn/Hands-Free/graphs/contributors
-[license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge
-[license-url]: https://github.com/directedbyshawn/Hands-Free/LICENSE.txt
-[forks-shield]: https://img.shields.io/github/forks/directedbyshawn/Hands-Free.svg?style=for-the-badge
-[forks-url]: https://github.com/directedbyshawn/Hands-Free/network/members
-[stars-shield]: https://img.shields.io/github/stars/directedbyshawn/Hands-Free.svg?style=for-the-badge
-[stars-url]: https://github.com/directedbyshawn/Hands-Free/stargazers
-[issues-shield]: https://img.shields.io/github/issues/directedbyshawn/Hands-Free.svg?style=for-the-badge
-[issues-url]: https://github.com/directedbyshawn/Hands-Free/issues
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/directedbyshawn
-
-
+**Dmytro Khursenko**: [dmytro.khursenko@gmail.com](mailto:dmytro.khursenko@gmail.com) · [LinkedIn](https://www.linkedin.com/in/dmytrokhursenko/) · [GitHub](https://github.com/dmitrykhursen)
